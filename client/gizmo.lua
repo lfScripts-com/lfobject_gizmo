@@ -4,17 +4,89 @@
 
 local dataview = require 'client.dataview'
 
-local enableScale = false -- allow scaling mode. doesnt scale collisions and resets when physics are applied it seems
+local enableScale = false
 local isCursorActive = false
 local gizmoEnabled = false
 local currentMode = 'translate'
 local isRelative = false
 local currentEntity
+local Scalform = nil
 
--- LOCALE INITIALISATION
 lib.locale()
 
--- FUNCTIONS
+local DetailsGizmo = {}
+local KeybindRefs = {}
+
+function SetScaleformParams(scaleform, data)
+	data = data or {}
+	for k,v in pairs(data) do
+		PushScaleformMovieFunction(scaleform, v.name)
+		if v.param then
+			for _,par in pairs(v.param) do
+				if math.type(par) == "integer" then
+					PushScaleformMovieFunctionParameterInt(par)
+				elseif type(par) == "boolean" then
+					PushScaleformMovieFunctionParameterBool(par)
+				elseif math.type(par) == "float" then
+					PushScaleformMovieFunctionParameterFloat(par)
+				elseif type(par) == "string" then
+					PushScaleformMovieFunctionParameterString(par)
+				end
+			end
+		end
+		if v.func then v.func() end
+		PopScaleformMovieFunctionVoid()
+	end
+end
+
+function CreateScaleform(name, data)
+	if not name or string.len(name) <= 0 then return end
+	local scaleform = RequestScaleformMovie(name)
+
+	while not HasScaleformMovieLoaded(scaleform) do
+		Citizen.Wait(0)
+	end
+
+	SetScaleformParams(scaleform, data)
+	return scaleform
+end
+
+function ActiveScalform()
+    local dataSlots = {
+        {
+            name = "CLEAR_ALL",
+            param = {}
+        }, 
+        {
+            name = "TOGGLE_MOUSE_BUTTONS",
+            param = { 0 }
+        },
+        {
+            name = "CREATE_CONTAINER",
+            param = {}
+        } 
+    }
+    local dataId = 0
+    
+    for k, v in ipairs(DetailsGizmo) do
+        if v.keybind and v.keybind.hash then
+            local label = v.label
+            if v.keybind == KeybindRefs.cursor then
+                label = (isCursorActive and locale("disable_cursor") or locale("enable_cursor"))
+            end
+            dataSlots[#dataSlots + 1] = {
+                name = "SET_DATA_SLOT",
+                param = {dataId, GetControlInstructionalButton(2, v.keybind.hash, 0), label}
+            }
+            dataId = dataId + 1
+        end
+    end
+    dataSlots[#dataSlots + 1] = {
+        name = "DRAW_INSTRUCTIONAL_BUTTONS",
+        param = { -1 }
+    }
+    return dataSlots
+end
 
 local function normalize(x, y, z)
     local length = math.sqrt(x * x + y * y + z * z)
@@ -68,8 +140,6 @@ local function applyEntityMatrix(entity, view)
     )
 end
 
--- LOOPS
-
 local function gizmoLoop(entity)
     if not gizmoEnabled then
         return LeaveCursorMode()
@@ -77,6 +147,8 @@ local function gizmoLoop(entity)
 
     EnterCursorMode()
     isCursorActive = true
+    
+    Scalform = CreateScaleform("INSTRUCTIONAL_BUTTONS", ActiveScalform())
 
     if IsEntityAPed(entity) then
         SetEntityAlpha(entity, 200)
@@ -86,18 +158,9 @@ local function gizmoLoop(entity)
     
     while gizmoEnabled and DoesEntityExist(entity) do
         Wait(0)
-        if IsControlJustPressed(0, 47) then -- G
-            if isCursorActive then
-                LeaveCursorMode()
-                isCursorActive = false
-            else
-                EnterCursorMode()
-                isCursorActive = true
-            end
-        end
-        DisableControlAction(0, 24, true)  -- lmb
-        DisableControlAction(0, 25, true)  -- rmb
-        DisableControlAction(0, 140, true) -- r
+        DisableControlAction(0, 24, true)
+        DisableControlAction(0, 25, true)
+        DisableControlAction(0, 140, true)
         DisablePlayerFiring(cache.playerId, true)
 
         local matrixBuffer = makeEntityMatrix(entity)
@@ -106,6 +169,10 @@ local function gizmoLoop(entity)
 
         if changed then
             applyEntityMatrix(entity, matrixBuffer)
+        end
+        
+        if Scalform then
+            DrawScaleformMovieFullscreen(Scalform, 255, 255, 255, 255, 0)
         end
     end
     
@@ -118,50 +185,19 @@ local function gizmoLoop(entity)
         if IsEntityAPed(entity) then SetEntityAlpha(entity, 255) end
         SetEntityDrawOutline(entity, false)
     end
+    
+    if Scalform then
+        SetScaleformMovieAsNoLongerNeeded(Scalform)
+        Scalform = nil
+    end
 
     gizmoEnabled = false
     currentEntity = nil
 end
 
-local function GetVectorText(vectorType) 
-    if not currentEntity then return 'ERR_NO_ENTITY_' .. (vectorType or "UNK") end
-    local label = (vectorType == "coords" and "Position" or "Rotation")
-    local vec = (vectorType == "coords" and GetEntityCoords(currentEntity) or GetEntityRotation(currentEntity))
-    return ('%s: %.2f, %.2f, %.2f'):format(label, vec.x, vec.y, vec.z)
-end
-
-local function textUILoop()
-    CreateThread(function()
-        while gizmoEnabled do
-            Wait(100)
-
-            local scaleText = (enableScale and '[S] - ' .. locale("scale_mode") .. '  \n') or ''
-            local modeLine = 'Current Mode: ' .. currentMode .. ' | ' .. (isRelative and 'Relative' or 'World') .. '  \n'
-
-            lib.showTextUI(
-                modeLine ..
-                GetVectorText("coords") .. '  \n' ..
-                GetVectorText("rotation") .. '  \n' ..
-                '[G]     - ' .. (isCursorActive and locale("disable_cursor") or locale("enable_cursor")) .. '  \n' ..
-                '[W]     - ' .. locale("translate_mode") .. '  \n' ..
-                '[R]     - ' .. locale("rotate_mode") .. '  \n' ..
-                scaleText ..
-                '[Q]     - ' .. locale("toggle_space") .. '  \n' ..
-                '[LALT]  - ' .. locale("snap_to_ground") .. '  \n' ..
-                '[ENTER] - ' .. locale("done_editing") .. '  \n'
-            )
-        end
-        lib.hideTextUI()
-    end)
-end
-
-
--- EXPORTS
-
 local function useGizmo(entity)
     gizmoEnabled = true
     currentEntity = entity
-    textUILoop()
     gizmoLoop(entity)
 
     return {
@@ -172,8 +208,6 @@ local function useGizmo(entity)
 end
 
 exports("useGizmo", useGizmo)
-
--- CONTROLS these execute the existing gizmo commands but allow me to add additional logic to update the mode display.
 
 lib.addKeybind({
     name = '_gizmoSelect',
@@ -189,7 +223,26 @@ lib.addKeybind({
     end
 })
 
-lib.addKeybind({
+KeybindRefs.cursor = lib.addKeybind({
+    name = '_gizmoCursor',
+    description = locale("enable_cursor"),
+    defaultKey = 'G',
+    onPressed = function(self)
+        if not gizmoEnabled then return end
+        if isCursorActive then
+            LeaveCursorMode()
+            isCursorActive = false
+        else
+            EnterCursorMode()
+            isCursorActive = true
+        end
+        if Scalform then
+            SetScaleformParams(Scalform, ActiveScalform())
+        end
+    end,
+})
+
+KeybindRefs.translate = lib.addKeybind({
     name = '_gizmoTranslation',
     description = locale("translation_mode_description"),
     defaultKey = 'W',
@@ -203,7 +256,7 @@ lib.addKeybind({
     end
 })
 
-lib.addKeybind({
+KeybindRefs.rotate = lib.addKeybind({
     name = '_gizmoRotation',
     description = locale("rotation_mode_description"),
     defaultKey = 'R',
@@ -217,13 +270,16 @@ lib.addKeybind({
     end
 })
 
-lib.addKeybind({
+KeybindRefs.toggleSpace = lib.addKeybind({
     name = '_gizmoLocal',
     description = locale("toggle_space_description"),
-    defaultKey = 'Q',
+    defaultKey = 'F',
     onPressed = function(self)
         if not gizmoEnabled then return end
         isRelative = not isRelative
+        if Scalform then
+            SetScaleformParams(Scalform, ActiveScalform())
+        end
         ExecuteCommand('+gizmoLocal')
     end,
     onReleased = function (self)
@@ -231,7 +287,7 @@ lib.addKeybind({
     end
 })
 
-lib.addKeybind({
+KeybindRefs.doneEditing = lib.addKeybind({
     name = 'gizmoclose',
     description = locale("close_gizmo_description"),
     defaultKey = 'RETURN',
@@ -241,10 +297,20 @@ lib.addKeybind({
     end,
 })
 
-lib.addKeybind({
+KeybindRefs.cancelEditing = lib.addKeybind({
+    name = 'gizmoCancel',
+    description = locale("cancel_editing_description"),
+    defaultKey = 'BACK',
+    onReleased = function(self)
+        if not gizmoEnabled then return end
+        gizmoEnabled = false
+    end,
+})
+
+KeybindRefs.snapToGround = lib.addKeybind({
     name = 'gizmoSnapToGround',
     description = locale("snap_to_ground_description"),
-    defaultKey = 'LMENU',
+    defaultKey = 'LSHIFT',
     onPressed = function(self)
         if not gizmoEnabled then return end
         PlaceObjectOnGroundProperly_2(currentEntity)
@@ -252,7 +318,7 @@ lib.addKeybind({
 })
 
 if enableScale then
-    lib.addKeybind({
+    KeybindRefs.scale = lib.addKeybind({
         name = '_gizmoScale',
         description = locale("scale_mode_description"),
         defaultKey = 'S',
@@ -266,3 +332,14 @@ if enableScale then
         end
     })
 end
+
+table.insert(DetailsGizmo, { keybind = KeybindRefs.doneEditing, label = locale("done_editing") })
+table.insert(DetailsGizmo, { keybind = KeybindRefs.rotate, label = locale("rotate_mode") })
+table.insert(DetailsGizmo, { keybind = KeybindRefs.translate, label = locale("translate_mode") })
+table.insert(DetailsGizmo, { keybind = KeybindRefs.toggleSpace, label = locale("toggle_space") })
+table.insert(DetailsGizmo, { keybind = KeybindRefs.cursor, label = locale("enable_cursor") })
+table.insert(DetailsGizmo, { keybind = KeybindRefs.snapToGround, label = locale("snap_to_ground") })
+if enableScale and KeybindRefs.scale then
+    table.insert(DetailsGizmo, { keybind = KeybindRefs.scale, label = locale("scale_mode") })
+end
+table.insert(DetailsGizmo, { keybind = KeybindRefs.cancelEditing, label = locale("cancel_editing") })

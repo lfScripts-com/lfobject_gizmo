@@ -12,11 +12,13 @@
   "toggle_space": "Relatif/Monde",
   "snap_to_ground": "Coller au Sol",
   "done_editing": "Terminer l'Édition",
+  "cancel_editing": "Annuler",
   "select_gizmo_description": "Sélectionne le gizmo actuellement mis en évidence",
   "translation_mode_description": "Passe le gizmo en mode translation",
   "rotation_mode_description": "Passe le gizmo en mode rotation",
   "toggle_space_description": "Basculer le gizmo en local par rapport à l'entité au lieu du monde",
   "close_gizmo_description": "Fermer le gizmo",
   "snap_to_ground_description": "Coller l'objet gizmo actuel au sol/surface",
-  "scale_mode_description": "Passe le gizmo en mode mise à l'échelle"
+  "scale_mode_description": "Passe le gizmo en mode mise à l'échelle",
+  "cancel_editing_description": "Annuler l'édition du gizmo"
 }
