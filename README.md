@@ -46,14 +46,16 @@ end)
 ## Controls
 
 While using the gizmo, the following controls apply:
-- [W]: Switch to Translate Mode
-- [R]: Switch to Rotate Mode
-- [S]: Switch to Scale Mode (if enabled)
-- [Q]: Switch between Relative and World
-- [LAlt]: Snap To Ground
-- [Enter]: Finish Editing
+- **[Enter]**: Finish Editing (confirm placement)
+- **[R]**: Switch to Rotate Mode
+- **[W]**: Switch to Translate Mode
+- **[F]**: Switch between Relative and World
+- **[G]**: Enable/Disable Cursor
+- **[Shift]**: Snap To Ground
+- **[S]**: Switch to Scale Mode (if enabled)
+- **[Backspace]**: Cancel Editing
 
-The current mode (Translate/Rotate) will be displayed on the screen.
+The controls are displayed at the bottom of the screen using the Scaleform instructional buttons system.
 
 ## Note
 
