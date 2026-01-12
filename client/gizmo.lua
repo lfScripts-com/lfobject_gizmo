@@ -11,6 +11,7 @@ local currentMode = 'translate'
 local isRelative = false
 local currentEntity
 local Scalform = nil
+local gizmoResult = nil
 
 lib.locale()
 
@@ -198,12 +199,14 @@ end
 local function useGizmo(entity)
     gizmoEnabled = true
     currentEntity = entity
+    gizmoResult = nil
     gizmoLoop(entity)
 
     return {
         handle = entity,
         position = GetEntityCoords(entity),
-        rotation = GetEntityRotation(entity)
+        rotation = GetEntityRotation(entity),
+        result = gizmoResult or 'cancel'
     }
 end
 
@@ -293,6 +296,7 @@ KeybindRefs.doneEditing = lib.addKeybind({
     defaultKey = 'RETURN',
     onReleased = function(self)
         if not gizmoEnabled then return end
+        gizmoResult = 'confirm'
         gizmoEnabled = false
     end,
 })
@@ -303,6 +307,7 @@ KeybindRefs.cancelEditing = lib.addKeybind({
     defaultKey = 'BACK',
     onReleased = function(self)
         if not gizmoEnabled then return end
+        gizmoResult = 'cancel'
         gizmoEnabled = false
     end,
 })
