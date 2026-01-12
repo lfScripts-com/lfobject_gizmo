@@ -1,8 +1,13 @@
 fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
-
 version '2.1.0'
+escrow_ignore {
+	'client/gizmo.lua',
+	'client/test.lua',
+	'client/dataview.lua',
+	'version.lua',
+}
 
 client_scripts {
 	"client/gizmo.lua",
