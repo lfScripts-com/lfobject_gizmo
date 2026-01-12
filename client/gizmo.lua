@@ -12,6 +12,8 @@ local isRelative = false
 local currentEntity
 local Scalform = nil
 local gizmoResult = nil
+local startCoords = nil
+local maxDistance = nil
 
 lib.locale()
 
@@ -157,6 +159,8 @@ local function gizmoLoop(entity)
         SetEntityDrawOutline(entity, true)
     end
     
+    local lastValidCoords = GetEntityCoords(entity)
+    
     while gizmoEnabled and DoesEntityExist(entity) do
         Wait(0)
         DisableControlAction(0, 24, true)
@@ -170,6 +174,20 @@ local function gizmoLoop(entity)
 
         if changed then
             applyEntityMatrix(entity, matrixBuffer)
+            
+            if startCoords and maxDistance and maxDistance > 0 then
+                local currentCoords = GetEntityCoords(entity)
+                local distance = #(currentCoords - startCoords)
+                
+                if distance > maxDistance then
+                    local direction = (currentCoords - startCoords) / distance
+                    local limitedCoords = startCoords + direction * maxDistance
+                    
+                    SetEntityCoords(entity, limitedCoords.x, limitedCoords.y, limitedCoords.z, false, false, false, false)
+                else
+                    lastValidCoords = currentCoords
+                end
+            end
         end
         
         if Scalform then
@@ -196,11 +214,16 @@ local function gizmoLoop(entity)
     currentEntity = nil
 end
 
-local function useGizmo(entity)
+local function useGizmo(entity, startPos, maxDist)
     gizmoEnabled = true
     currentEntity = entity
     gizmoResult = nil
+    startCoords = startPos
+    maxDistance = maxDist
     gizmoLoop(entity)
+
+    startCoords = nil
+    maxDistance = nil
 
     return {
         handle = entity,
